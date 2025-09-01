@@ -4,172 +4,57 @@ Automate extraction, renaming, backup, and restoration of Z-Wave device entities
 
 ---
 
-## Features
+## Installation: Home Assistant AppDaemon Add-on
 
-- Extracts all entity IDs and full attributes for a given Z-Wave device.
-- Exports editable YAML mapping file - supports 1:1 and partial/sparse mapping (for different switch types/port counts).
-- Renames new Z-Wave entities to user-specified names with validation, full logging, backup of states, and reporting of unmapped/surplus entities.
-- Exports full device configuration (parameters) where supported by Z-Wave JS.
-- Restores config/parameters to new device if models allow (with full reporting if some can't be mapped).
-- Backs up all data, outputs human-friendly YAML operation reports.
-- Fully logged/error reported at every step.
+This utility is designed to run as an AppDaemon app using the official AppDaemon Home Assistant add-on. Other installation types (Docker, pip, Python venv, etc.) are not covered here—refer to [AppDaemon documentation](https://appdaemon.readthedocs.io/en/latest/INSTALL.html) for advanced/manual setups.
 
----
+### 1. Install the AppDaemon Add-On
 
----
+1. In Home Assistant, go to **Settings** > **Add-ons**.
+2. Click **Add-on Store**.
+3. Find and install the official **AppDaemon 4** add-on ([docs](https://github.com/hassio-addons/addon-appdaemon#readme)).
+4. Once installed, open the add-on and start it for initial setup (set any basic options as needed for your instance).
 
-## AppDaemon Installation
+### 2. Prepare the Directory Structure
 
-AppDaemon must be installed and configured *before* using this mapper utility. Choose one of the supported methods below to install AppDaemon on your system. For usage and configuration of this utility, see the sections that follow.
+1. In your Home Assistant config folder (where `configuration.yaml` is located), ensure an `apps` directory exists:
+   - If not, create it: `apps/`
+2. Inside `apps/`, copy the following files:
+   - `zwave_entity_mapper.py`
+   - `zwave_entity_mapping.yaml`
+3. (Recommended) Create a backup subdirectory for state/config backups:
+   - `apps/zwave_backup/`
+4. For the HADashboard UI, ensure the following directory exists:
+   - `apps/dashboards/`
+5. Copy the dashboard YAML:
+   - Copy `dashboards/zwave_entity_mapper.dash` into `apps/dashboards/`.
 
-### **1. Docker**
+### 3. App Setup
 
-A stable and popular AppDaemon container image is [`acockburn/appdaemon`](https://hub.docker.com/r/acockburn/appdaemon).
-- **Start with Docker Compose:**
-  ```yaml
-  version: "3.7"
-  services:
-    appdaemon:
-      image: acockburn/appdaemon:latest
-      restart: unless-stopped
-      container_name: appdaemon
-      environment:
-        - DASH_URL=http://localhost:5050
-        - HA_URL=http://homeassistant:8123
-        - TOKEN=your_long_lived_access_token
-      volumes:
-        - ./appdaemon_config:/conf      # <- persist ALL AppDaemon config, including apps/
-      ports:
-        - 5050:5050    # web UI (optional)
-  ```
-- Adjust `TOKEN` and targets as needed for your HA install.
-- The `/conf` directory is *persisted and shared* for apps, configuration, and utility files.
+1. Edit your `apps.yaml` (located in `apps/`):
+   - Add a new entry for the Z-Wave Entity Mapper (see Usage section below for a sample configuration).
+2. Configure `target_device_id`, mapping file path, backup location, and any other settings as needed.
 
-### **2. Pip Install (Linux & Raspberry Pi OS)**
+### 4. Restart AppDaemon Add-on
 
-- **Recommended:** Use a Python virtual environment.
-  ```sh
-  sudo apt update
-  sudo apt install python3 python3-venv python3-pip -y
-  python3 -m venv ~/appdaemon-venv
-  source ~/appdaemon-venv/bin/activate
-  pip install wheel
-  pip install appdaemon
-  # Create a config dir (e.g. ~/appdaemon-config)
-  mkdir -p ~/appdaemon-config
-  ```
-- Copy this utility app to `~/appdaemon-config/apps/`.
-- Start AppDaemon:
-  ```sh
-  appdaemon -c ~/appdaemon-config
-  ```
+- After copying or updating any utility files or configurations, **restart the AppDaemon add-on** from the HA add-ons dashboard.
+  - This ensures your app and dashboards are loaded and active.
 
-### **3. Pip Install (Windows)**
+### 5. Accessing HADashboard
 
-- **Recommended:** Use a virtual environment (`venv`) in PowerShell or Command Prompt.
-  ```powershell
-  py -3 -m venv %USERPROFILE%\appdaemon-venv
-  %USERPROFILE%\appdaemon-venv\Scripts\activate
-  pip install wheel
-  pip install appdaemon
-  mkdir %USERPROFILE%\appdaemon-config
-  ```
-- Copy this utility app to `%USERPROFILE%\appdaemon-config\apps\`
-- Start AppDaemon:
-  ```powershell
-  appdaemon -c %USERPROFILE%\appdaemon-config
-  ```
+- Open: `http://<your-home-assistant-host>:5050/zwave_entity_mapper`
+  - Replace `<your-home-assistant-host>` with the hostname or IP of your HA instance.
+- The default dashboard port is `5050`.
+- If authentication (username/password) is enabled in AppDaemon, you will be prompted to log in.
 
-### **4. Home Assistant Add-On (Reference)**
+#### First-time Tips & Authentication
 
-If running Home Assistant OS/Supervised, install the official AppDaemon add-on ("AppDaemon 4" in Supervisor > Add-on Store).
-**Follow the official [Home Assistant Add-on AppDaemon docs](https://github.com/hassio-addons/addon-appdaemon#readme)** for all details. See [AppDaemon docs](https://appdaemon.readthedocs.io/) for custom app placement/config specifics.
-
-### **5. Running AppDaemon at Startup (Systemd/init.d)**
-
-For advanced users wishing to run AppDaemon at system startup as a background service:
-
-- **Systemd template** (`/etc/systemd/system/appdaemon.service`):
-  ```
-  [Unit]
-  Description=AppDaemon service
-  After=network.target
-
-  [Service]
-  Type=simple
-  User=YOUR_USERNAME
-  WorkingDirectory=/home/YOUR_USERNAME/appdaemon-config
-  ExecStart=/home/YOUR_USERNAME/appdaemon-venv/bin/appdaemon -c /home/YOUR_USERNAME/appdaemon-config
-  Restart=always
-
-  [Install]
-  WantedBy=multi-user.target
-  ```
-  - Replace `YOUR_USERNAME` and paths as needed.
-  - Enable and start:
-    ```sh
-    sudo systemctl enable appdaemon
-    sudo systemctl start appdaemon
-    ```
-
-- **init.d snippet** (legacy, use only if needed):
-  Place an executable script in `/etc/init.d/appdaemon` that starts appdaemon as your user with correct env/venv and config. Reference [AppDaemon docs > Running as a Service](https://appdaemon.readthedocs.io/en/latest/INSTALL.html#running-as-a-service).
-
-Full install/config instructions: [AppDaemon Documentation](https://appdaemon.readthedocs.io/en/latest/INSTALL.html)
-
-## Containerized Usage with Built-In Docker Image
-
-You can build and run this Z-Wave Entity Mapper utility in a self-contained Docker container using the supplied Dockerfile. This provides a reproducible, isolated AppDaemon environment containing the mapping scripts and all dependencies.
-
-### 1. Build the Docker Image
-
-```sh
-docker build -t appdaemon-zwave-mapper .
-```
-- Run this in the project root directory (where the Dockerfile is present).
-- The image includes AppDaemon installed in a dedicated Python venv.
-
-### 2. Prepare a Configuration Directory
-
-Create a local directory to persist your AppDaemon config, YAML mapping, and script state:
-```sh
-mkdir -p ./appdaemon_config
-# (copy your existing config and 'apps/' here if needed)
-```
-On first run, the image provides defaults in `/app`, but you should use a mounted `/conf` volume for persistence and customization.
-
-### 3. Run the Container
-
-Example:
-
-```sh
-docker run -d \
-  --name appdaemon-zwave-mapper \
-  -p 5050:5050 -p 5051:5051 \
-  -v "$(pwd)/appdaemon_config:/conf" \
-  -e HA_URL=http://homeassistant:8123 \
-  -e TOKEN=your_long_lived_access_token \
-  appdaemon-zwave-mapper
-```
-- Adjust environment variables (`HA_URL`, `TOKEN`, etc.) as needed for your Home Assistant instance.
-- The `/conf` directory inside the container is **where AppDaemon expects all config and apps**, and will persist all state, reports, and mapping files.
-- Ports `5050` (main web UI) and `5051` (dashboard) are exposed by default.
-- Use `-v` to map a **persistent config directory**.
-
-### 4. Container Entry
-
-The image starts AppDaemon using `/conf` as the config root. See AppDaemon documentation for extra runtime options (override the CMD as needed).
-
-> **Note:** This image is distinct from the official [`acockburn/appdaemon`](https://hub.docker.com/r/acockburn/appdaemon) image and is designed for standalone Home Assistant utility mapping. You are responsible for secrets, network access, and config backups.
-
-### 5. Update/Restart
-
-To update code/config, rebuild the image and restart the container:
-```sh
-docker build -t appdaemon-zwave-mapper .
-docker stop appdaemon-zwave-mapper && docker rm appdaemon-zwave-mapper
-docker run ... # As above
-```
+- On first run, the `zwave_entity_mapper` app will:
+  - Extract available Z-Wave device entities to a mapping YAML.
+  - Create backup files in the specified backup directory.
+- **If you update mapping or app files in `apps/`, always restart the AppDaemon add-on** for changes to take effect.
+- To avoid permission issues, copy/update files using the same user as HA (often via Samba, SSH, or the VSCode add-on).
+- For advanced or manual installation (Docker, pip, etc.), see the [AppDaemon documentation](https://appdaemon.readthedocs.io/en/latest/INSTALL.html).
 
 ---
 
@@ -177,13 +62,13 @@ docker run ... # As above
 
 ### 1. Prerequisites
 
-- [AppDaemon](https://appdaemon.readthedocs.io/) installed and configured with Home Assistant/HASS integration.
+- [AppDaemon](https://appdaemon.readthedocs.io/) Home Assistant add-on installed and running.
 - Z-Wave JS integration enabled.
 
 ### 2. File Placement
 
-- Place `apps/zwave_entity_mapper.py` and `apps/zwave_entity_mapping.yaml` in your AppDaemon `apps/` directory.
-- Ensure backup subdir exists (default: `apps/zwave_backup/`).
+- Place `zwave_entity_mapper.py` and `zwave_entity_mapping.yaml` in the `apps/` directory of your HA config.
+- Ensure a backup subdir exists: `apps/zwave_backup/`.
 
 ### 3. AppDaemon Configuration Example
 
@@ -204,13 +89,14 @@ zwave_entity_mapper:
 ### 4. Initial Entity Extraction & YAML Export
 
 - On first run, the script extracts all entities for the target device and outputs:
-    - `zwave_entity_mapping.yaml` (edit this for mapping, see below)
-    - Backup of all entity states
+    - `zwave_entity_mapping.yaml` (edit this file for mapping, see below)
+    - A backup of all entity states
     - Z-Wave device config backup
 
 ### 5. Edit Mapping YAML
 
-Example for 1-to-1 and partial (sparse) mapping:
+Sample mapping:
+
 ```yaml
 mappings:
   - current_entity: switch.old_switch_switch_1
@@ -222,18 +108,20 @@ mappings:
   - current_entity: switch.old_switch_switch_4
     target_entity:  # Not mapped (skipped)
 ```
-- Leave `target_entity` blank/null for any source entity to skip mapping.
+
+- Leave `target_entity` blank/null for any entity you don't wish to map.
 
 ### 6. Entity Rename & Reporting
 
 - Script will back up each entity state, validate no naming collisions, and perform renames via Home Assistant entity registry.
 - Full YAML report written to e.g. `last_run_report.yaml`, including:
-    - Which entities were renamed, errors, skipped, unmapped, and surplus entities
+    - Entities renamed
+    - Errors, skipped, unmapped, and surplus entities
 
 ### 7. Z-Wave Device Config Backup/Restore
 
-- Backs up all available config parameters via Z-Wave JS (as permitted by the integration).
-- If `restore_to_device_id` is specified, attempts to restore all mapped parameters to the new device (skips parameters not present; errors are logged and reported).
+- Backs up all available config parameters via Z-Wave JS.
+- If `restore_to_device_id` is specified, attempts to restore all mapped parameters to the new device and logs any skipped parameters.
 
 ---
 
@@ -244,16 +132,13 @@ A simple web dashboard is included for direct operation and result viewing via A
 ### Enabling the Dashboard
 
 1. **Copy the dashboard YAML:**
-   - Place `apps/dashboards/zwave_entity_mapper.dash` into your AppDaemon `dashboards/` directory.
-   - With standard Docker or config, this is usually `<config>/dashboards/` or `<conf>/dashboards/`.
-
+   - Place `apps/dashboards/zwave_entity_mapper.dash` into `apps/dashboards/`.
 2. **Ensure the utility app (`zwave_entity_mapper.py`) is enabled and running in AppDaemon.**
    - All sensor and trigger states are handled automatically.
-
 3. **Access the dashboard UI:**
-   - Open `http://<your-appdaemon-host>:5050/zwave_entity_mapper` in your browser.
-   - Default AppDaemon dashboards are served at port `5050`.
-   - If authentication or password is configured, you will need to log in with your AppDaemon dashboard user/pass.
+   - Open `http://<your-home-assistant-host>:5050/zwave_entity_mapper` in your browser.
+   - Dashboard port defaults to `5050`.
+   - If authentication is configured, log in with your AppDaemon dashboard credentials.
 
 ### Dashboard Features
 
@@ -268,25 +153,26 @@ A simple web dashboard is included for direct operation and result viewing via A
   - **Message:** Shows success/error details after each operation.
   - **Migration Summary:** Shows number of unmapped entities, error count, and last run time.
 
-### Dashboard Entity Mapping
+#### Dashboard Entity Mapping
 
-- Dashboard actions are wired via virtual sensors:
+- Dashboard actions are triggered via these sensors:
   - `sensor.zem_dashboard_export_trigger`
   - `sensor.zem_dashboard_import_trigger`
   - `sensor.zem_dashboard_backup_trigger`
   - `sensor.zem_dashboard_restore_trigger`
-- Output:
+- Output sensors:
   - `sensor.zem_dashboard_status`
   - `sensor.zem_dashboard_message`
   - `sensor.zem_dashboard_summary`
 - These are managed automatically by the AppDaemon utility.
 
-### Notes
+#### Notes
 
-- If you have enabled basic authentication in AppDaemon (`api_password`, etc.), log in at the dashboard URL above.
+- If you've enabled authentication in AppDaemon (`api_password`, etc.), you must log in via the dashboard URL.
 - All dashboard operations and output files remain available in your AppDaemon config directory for advanced/manual use.
-- For advanced customizations, edit the dashboard YAML as desired.
+- For customizations, edit the dashboard YAML as desired.
 
+---
 
 ## Flow Overview
 
@@ -300,7 +186,7 @@ A simple web dashboard is included for direct operation and result viewing via A
 
 ## Limitations
 
-- **Requires Home Assistant with Z-Wave JS and AppDaemon.**
+- **Requires Home Assistant with Z-Wave JS and AppDaemon Add-On.**
 - Entity renaming and config restore depend on capabilities of HA and Z-Wave JS APIs.
 - Parameters/config may not be transferable between different device models/hardware.
 - Some advanced or custom device parameters may not be exported/restored (limited by the integration).
@@ -335,7 +221,7 @@ mappings:
   - current_entity: switch.old_1
     target_entity: switch.new_1
   - current_entity: switch.old_2
-    target_entity:
+    target_entity: 
   - current_entity: binary_sensor.old_contact
     target_entity:  # skipped entirely
 ```
