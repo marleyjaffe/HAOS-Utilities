@@ -117,6 +117,62 @@ For advanced users wishing to run AppDaemon at system startup as a background se
 
 Full install/config instructions: [AppDaemon Documentation](https://appdaemon.readthedocs.io/en/latest/INSTALL.html)
 
+## Containerized Usage with Built-In Docker Image
+
+You can build and run this Z-Wave Entity Mapper utility in a self-contained Docker container using the supplied Dockerfile. This provides a reproducible, isolated AppDaemon environment containing the mapping scripts and all dependencies.
+
+### 1. Build the Docker Image
+
+```sh
+docker build -t appdaemon-zwave-mapper .
+```
+- Run this in the project root directory (where the Dockerfile is present).
+- The image includes AppDaemon installed in a dedicated Python venv.
+
+### 2. Prepare a Configuration Directory
+
+Create a local directory to persist your AppDaemon config, YAML mapping, and script state:
+```sh
+mkdir -p ./appdaemon_config
+# (copy your existing config and 'apps/' here if needed)
+```
+On first run, the image provides defaults in `/app`, but you should use a mounted `/conf` volume for persistence and customization.
+
+### 3. Run the Container
+
+Example:
+
+```sh
+docker run -d \
+  --name appdaemon-zwave-mapper \
+  -p 5050:5050 -p 5051:5051 \
+  -v "$(pwd)/appdaemon_config:/conf" \
+  -e HA_URL=http://homeassistant:8123 \
+  -e TOKEN=your_long_lived_access_token \
+  appdaemon-zwave-mapper
+```
+- Adjust environment variables (`HA_URL`, `TOKEN`, etc.) as needed for your Home Assistant instance.
+- The `/conf` directory inside the container is **where AppDaemon expects all config and apps**, and will persist all state, reports, and mapping files.
+- Ports `5050` (main web UI) and `5051` (dashboard) are exposed by default.
+- Use `-v` to map a **persistent config directory**.
+
+### 4. Container Entry
+
+The image starts AppDaemon using `/conf` as the config root. See AppDaemon documentation for extra runtime options (override the CMD as needed).
+
+> **Note:** This image is distinct from the official [`acockburn/appdaemon`](https://hub.docker.com/r/acockburn/appdaemon) image and is designed for standalone Home Assistant utility mapping. You are responsible for secrets, network access, and config backups.
+
+### 5. Update/Restart
+
+To update code/config, rebuild the image and restart the container:
+```sh
+docker build -t appdaemon-zwave-mapper .
+docker stop appdaemon-zwave-mapper && docker rm appdaemon-zwave-mapper
+docker run ... # As above
+```
+
+---
+
 ## Usage
 
 ### 1. Prerequisites
