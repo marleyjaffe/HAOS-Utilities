@@ -22,9 +22,29 @@ ha core exec -- mkdir -p /config/backups/entity_backups
 
 # Run backup
 echo "📦 Starting backup for Node $NODE_ID..."
-# Fix: Pass arguments with quotes for safety, and ensure absolute path is used.
+# Fix: Carefully quote the python command so it is passed as a single argument string to 'ha core exec'.
+# This ensures '$NODE_ID' is expanded on the host, but the *entire* command (including the argument) is invoked within the HA container.
+# Add error detection: If the backup command fails or returns nonzero, exit immediately and print an error.
+set +e
 ha core exec -- python3 /config/entities_backup.py "$NODE_ID"
+HA_EXIT_CODE=$?
+set -e
 
+if [ $HA_EXIT_CODE -ne 0 ]; then
+    echo "❌ Backup command failed: ha core exec exited with status $HA_EXIT_CODE"
+    echo "Aborting. Backup was NOT created."
+    exit 2
+fi
+
+# Validation: Confirm the backup file exists from the host after running ha core exec.
+BACKUP_PATH="/config/backups/entity_backups/node_${NODE_ID}_backup.json"
+if ! [ -f "$BACKUP_PATH" ]; then
+    echo "❌ Backup failed: Expected backup file not found at $BACKUP_PATH"
+    echo "Aborting. No backup summary shown."
+    exit 3
+fi
+
+# Only show backup summary if previous steps succeeded and backup file exists.
 echo ""
 echo "📋 Backup Summary:"
 echo "├── Node ID: $NODE_ID"
