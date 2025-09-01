@@ -26,7 +26,9 @@ echo "📦 Starting backup for Node $NODE_ID..."
 # This ensures '$NODE_ID' is expanded on the host, but the *entire* command (including the argument) is invoked within the HA container.
 # Add error detection: If the backup command fails or returns nonzero, exit immediately and print an error.
 set +e
-ha core exec -- python3 /config/entities_backup.py "$NODE_ID"
+CMD="ha core exec -- /bin/sh -c \"python3 /config/entities_backup.py '$NODE_ID'\""
+echo "🔎 Running backup command: $CMD"
+ha core exec -- /bin/sh -c "python3 /config/entities_backup.py '$NODE_ID'"
 HA_EXIT_CODE=$?
 set -e
 
