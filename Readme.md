@@ -16,6 +16,107 @@ Automate extraction, renaming, backup, and restoration of Z-Wave device entities
 
 ---
 
+---
+
+## AppDaemon Installation
+
+AppDaemon must be installed and configured *before* using this mapper utility. Choose one of the supported methods below to install AppDaemon on your system. For usage and configuration of this utility, see the sections that follow.
+
+### **1. Docker**
+
+A stable and popular AppDaemon container image is [`acockburn/appdaemon`](https://hub.docker.com/r/acockburn/appdaemon).
+- **Start with Docker Compose:**
+  ```yaml
+  version: "3.7"
+  services:
+    appdaemon:
+      image: acockburn/appdaemon:latest
+      restart: unless-stopped
+      container_name: appdaemon
+      environment:
+        - DASH_URL=http://localhost:5050
+        - HA_URL=http://homeassistant:8123
+        - TOKEN=your_long_lived_access_token
+      volumes:
+        - ./appdaemon_config:/conf      # <- persist ALL AppDaemon config, including apps/
+      ports:
+        - 5050:5050    # web UI (optional)
+  ```
+- Adjust `TOKEN` and targets as needed for your HA install.
+- The `/conf` directory is *persisted and shared* for apps, configuration, and utility files.
+
+### **2. Pip Install (Linux & Raspberry Pi OS)**
+
+- **Recommended:** Use a Python virtual environment.
+  ```sh
+  sudo apt update
+  sudo apt install python3 python3-venv python3-pip -y
+  python3 -m venv ~/appdaemon-venv
+  source ~/appdaemon-venv/bin/activate
+  pip install wheel
+  pip install appdaemon
+  # Create a config dir (e.g. ~/appdaemon-config)
+  mkdir -p ~/appdaemon-config
+  ```
+- Copy this utility app to `~/appdaemon-config/apps/`.
+- Start AppDaemon:
+  ```sh
+  appdaemon -c ~/appdaemon-config
+  ```
+
+### **3. Pip Install (Windows)**
+
+- **Recommended:** Use a virtual environment (`venv`) in PowerShell or Command Prompt.
+  ```powershell
+  py -3 -m venv %USERPROFILE%\appdaemon-venv
+  %USERPROFILE%\appdaemon-venv\Scripts\activate
+  pip install wheel
+  pip install appdaemon
+  mkdir %USERPROFILE%\appdaemon-config
+  ```
+- Copy this utility app to `%USERPROFILE%\appdaemon-config\apps\`
+- Start AppDaemon:
+  ```powershell
+  appdaemon -c %USERPROFILE%\appdaemon-config
+  ```
+
+### **4. Home Assistant Add-On (Reference)**
+
+If running Home Assistant OS/Supervised, install the official AppDaemon add-on ("AppDaemon 4" in Supervisor > Add-on Store).
+**Follow the official [Home Assistant Add-on AppDaemon docs](https://github.com/hassio-addons/addon-appdaemon#readme)** for all details. See [AppDaemon docs](https://appdaemon.readthedocs.io/) for custom app placement/config specifics.
+
+### **5. Running AppDaemon at Startup (Systemd/init.d)**
+
+For advanced users wishing to run AppDaemon at system startup as a background service:
+
+- **Systemd template** (`/etc/systemd/system/appdaemon.service`):
+  ```
+  [Unit]
+  Description=AppDaemon service
+  After=network.target
+
+  [Service]
+  Type=simple
+  User=YOUR_USERNAME
+  WorkingDirectory=/home/YOUR_USERNAME/appdaemon-config
+  ExecStart=/home/YOUR_USERNAME/appdaemon-venv/bin/appdaemon -c /home/YOUR_USERNAME/appdaemon-config
+  Restart=always
+
+  [Install]
+  WantedBy=multi-user.target
+  ```
+  - Replace `YOUR_USERNAME` and paths as needed.
+  - Enable and start:
+    ```sh
+    sudo systemctl enable appdaemon
+    sudo systemctl start appdaemon
+    ```
+
+- **init.d snippet** (legacy, use only if needed):
+  Place an executable script in `/etc/init.d/appdaemon` that starts appdaemon as your user with correct env/venv and config. Reference [AppDaemon docs > Running as a Service](https://appdaemon.readthedocs.io/en/latest/INSTALL.html#running-as-a-service).
+
+Full install/config instructions: [AppDaemon Documentation](https://appdaemon.readthedocs.io/en/latest/INSTALL.html)
+
 ## Usage
 
 ### 1. Prerequisites
