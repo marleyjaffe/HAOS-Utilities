@@ -13,19 +13,16 @@ fi
 echo "🏠 Home Assistant Z-Wave JS Entity Backup Tool"
 echo "============================================="
 
-# Check if running in HA container
-if [ ! -d "/usr/src/homeassistant" ]; then
-    echo "❌ Error: Must run from Home Assistant container"
-    echo "SSH into Home Assistant and try again"
-    exit 1
-fi
+# Container environment check removed. This script can now be safely run from the HAOS host (SSH/Terminal add-on shell).
+# Python commands will be executed inside the Home Assistant Core container using 'ha core exec'.
 
 # Create backup directory
 mkdir -p /config/backups/entity_backups
 
 # Run backup
 echo "📦 Starting backup for Node $NODE_ID..."
-python3 /config/entities_backup.py $NODE_ID
+# Run the backup script INSIDE the Home Assistant Core container
+ha core exec -- python3 /config/entities_backup.py $NODE_ID
 
 echo ""
 echo "📋 Backup Summary:"
@@ -36,4 +33,5 @@ echo ""
 echo "Next steps:"
 echo "1. Perform Z-Wave JS Replace Node operation"
 echo "2. Wait for device interview completion"
-echo "3. Run: python3 /config/restore_entities.py $NODE_ID (if needed)"
+# If restoration is needed, run the restore script inside the Home Assistant Core container from the host shell like this:
+echo "3. Run: ha core exec -- python3 /config/restore_entities.py \$NODE_ID (if needed)"
