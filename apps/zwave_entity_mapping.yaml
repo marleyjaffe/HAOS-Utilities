@@ -1,0 +1,22 @@
+# Z-Wave JS Entity Mapping Template
+# 
+# - Provide mappings for each entity belonging to your original device.
+# - For entities you wish to skip, leave target_entity as null or remove the entry.
+# - To perform a 1:1 rename, provide the desired new entity_id.
+# 
+# Example for a 4-port switch mapping to a 2-port replacement:
+#
+# mappings:
+#   - current_entity: switch.old_switch_switch_1
+#     target_entity: switch.new_switch_switch_1
+#   - current_entity: switch.old_switch_switch_2
+#     target_entity: switch.new_switch_switch_2
+#   - current_entity: switch.old_switch_switch_3
+#     target_entity:  # <--- Skipped (no new port available)
+#   - current_entity: switch.old_switch_switch_4
+#     target_entity:  # <--- Skipped
+
+mappings:
+  - current_entity: 
+    target_entity: 
+  # Add additional mapping lines for each entity as needed

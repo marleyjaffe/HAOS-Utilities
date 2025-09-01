@@ -1,109 +1,137 @@
-# Z-Wave Node Backup App for AppDaemon & Home Assistant
+# Z-Wave Entity Mapper & Migrator for Home Assistant (AppDaemon + Z-Wave JS)
 
-## Overview
+Automate extraction, renaming, backup, and restoration of Z-Wave device entities and configuration in Home Assistant with robust logging, reporting, and YAML-driven mapping.
 
-The `zwave_node_backup.py` AppDaemon app provides an automated workflow to trigger, manage, and store backup files for individual Z-Wave nodes in a Home Assistant environment. It is designed to simplify the routine backup of Z-Wave nodes, integrating with ancillary scripts (notably [`entities_backup.py`](entities_backup.py:1)) for robust device/state preservation. This enables routine save-points before network changes, troubleshooting, or migration—improving reliability and disaster recovery for Home Assistant users utilizing Z-Wave.
+---
 
-## Prerequisites
+## Features
 
-- **Home Assistant** instance (tested with Supervisor and Core installations).
-- **AppDaemon** installed, configured, and connected to your Home Assistant instance ([AppDaemon docs](https://appdaemon.readthedocs.io/)).
-- **Python 3**. The app and supporting scripts require a working Python 3 installation.
-- **File system access**:
-  - The user running AppDaemon must have read/write permissions in the backup script locations and the target backup storage directories.
-- **Location of Supporting Script**:
-  - Ensure [`entities_backup.py`](entities_backup.py:1) is present in the same directory as this app or update its import path in [`zwave_node_backup.py`](zwave_node_backup.py:1).
-  - Both scripts must be accessible by the AppDaemon application environment.
+- Extracts all entity IDs and full attributes for a given Z-Wave device.
+- Exports editable YAML mapping file - supports 1:1 and partial/sparse mapping (for different switch types/port counts).
+- Renames new Z-Wave entities to user-specified names with validation, full logging, backup of states, and reporting of unmapped/surplus entities.
+- Exports full device configuration (parameters) where supported by Z-Wave JS.
+- Restores config/parameters to new device if models allow (with full reporting if some can't be mapped).
+- Backs up all data, outputs human-friendly YAML operation reports.
+- Fully logged/error reported at every step.
 
-## Installation
-
-1. **Copy App Files**:
-   - Place [`zwave_node_backup.py`](zwave_node_backup.py:1) and [`entities_backup.py`](entities_backup.py:1) into the `apps` directory of your AppDaemon configuration (commonly `~/.homeassistant/appdaemon/apps/`).
-2. **Update AppDaemon config**:
-   - Edit your `apps.yaml` (or equivalent app configuration file) to register the app and set options. See configuration below.
-3. **Restart AppDaemon**:
-   - After saving changes, restart AppDaemon for the new app to be loaded.
-
-## Configuration
-
-### 1. Via `apps.yaml`
-
-Add a configuration for `zwave_node_backup` in your AppDaemon `apps.yaml`:
-
-```yaml
-zwave_node_backup:
-  module: zwave_node_backup
-  class: ZWaveNodeBackup
-  node_id: 5                 # REQUIRED: Node ID of the Z-Wave device to backup
-  backup_dir: /config/backups # OPTIONAL: Directory where backups will be stored
-  notify_service: notify.mobile_app_yourdevice  # OPTIONAL: Home Assistant notification service to use
-```
-
-- `node_id`: Z-Wave node number you wish to back up (see Z-Wave integration panel for list of nodes).
-- `backup_dir`: (optional) Override default backup location. Must be accessible by AppDaemon.
-- `notify_service`: (optional) Notification target for success/failure messages.
-
-### 2. Via Service Call (If Supported)
-
-If the script provides a Home Assistant service for backup, you can trigger backups for specific nodes dynamically (see Usage below). Otherwise, adjust the config and reload AppDaemon.
+---
 
 ## Usage
 
-### Initiate a Backup
+### 1. Prerequisites
 
-- **Automatic**: If scheduled or triggered by configuration, the backup will run for the node configured in `apps.yaml`.
-- **Manual Service Call** (if implemented): Use Home Assistant’s Developer Tools to call the relevant AppDaemon service, passing the `node_id` parameter.
+- [AppDaemon](https://appdaemon.readthedocs.io/) installed and configured with Home Assistant/HASS integration.
+- Z-Wave JS integration enabled.
 
-#### Example Service Call
+### 2. File Placement
+
+- Place `apps/zwave_entity_mapper.py` and `apps/zwave_entity_mapping.yaml` in your AppDaemon `apps/` directory.
+- Ensure backup subdir exists (default: `apps/zwave_backup/`).
+
+### 3. AppDaemon Configuration Example
+
+Add to your `apps/apps.yaml` (edit device IDs and mapping file path as needed):
 
 ```yaml
-service: appdaemon.call_service
-data:
-  app: zwave_node_backup
-  service: backup_node
-  node_id: 5
+zwave_entity_mapper:
+  module: zwave_entity_mapper
+  class: ZWaveEntityMapper
+  target_device_id: !your_original_zwave_device_id_here!
+  mapping_file: zwave_entity_mapping.yaml
+  backup_dir: zwave_backup
+  report_file: last_run_report.yaml
+  # Optional: For restoring config to a new device
+  # restore_to_device_id: !new_zwave_device_id!
 ```
 
-### Output and Result Notifications
+### 4. Initial Entity Extraction & YAML Export
 
-- **Backup Location**: Backup files will be stored in the directory specified by `backup_dir` (default is typically under `/config/backups/`).
-- **Logging**: AppDaemon logs will show detailed steps, errors, and results of each backup operation.
-- **Notifications**: If `notify_service` is set, the app will push notifications about success or failure to the specified Home Assistant device.
-- **Backup artifacts**: Typically `.json` or `.tar` files named with the Z-Wave node ID and timestamp.
+- On first run, the script extracts all entities for the target device and outputs:
+    - `zwave_entity_mapping.yaml` (edit this for mapping, see below)
+    - Backup of all entity states
+    - Z-Wave device config backup
 
-## Success & Failure Interpretation
+### 5. Edit Mapping YAML
 
-- **On Success**:
-  - A notification (`notify_service`) and log entry confirms the backup file creation.
-  - The backup file is saved with a matching timestamp and node ID.
-  - Next steps: Optionally verify the file exists and matches expected size/format.
-- **On Failure**:
-  - Notification and/or log entry will indicate the type of failure (e.g. "Node ID not found", "File system write error", "entities_backup.py not found", etc).
-  - Review the log details and check all prerequisites (especially node ID validity, permissions, and scripts’ presence).
+Example for 1-to-1 and partial (sparse) mapping:
+```yaml
+mappings:
+  - current_entity: switch.old_switch_switch_1
+    target_entity: switch.new_switch_switch_1
+  - current_entity: switch.old_switch_switch_2
+    target_entity: switch.new_switch_switch_2
+  - current_entity: switch.old_switch_switch_3
+    target_entity:
+  - current_entity: switch.old_switch_switch_4
+    target_entity:  # Not mapped (skipped)
+```
+- Leave `target_entity` blank/null for any source entity to skip mapping.
 
-## Next Steps After Backup
+### 6. Entity Rename & Reporting
 
-- Download the backup file(s) and store them safely offline for redundancy.
-- For restoration, refer to the unbackup or restore script (e.g. [`restore_entities.py`](restore_entities.py:1)) and follow its documentation.
-- Test newly restored states on a test node or during maintenance windows whenever possible.
+- Script will back up each entity state, validate no naming collisions, and perform renames via Home Assistant entity registry.
+- Full YAML report written to e.g. `last_run_report.yaml`, including:
+    - Which entities were renamed, errors, skipped, unmapped, and surplus entities
 
-## Troubleshooting
+### 7. Z-Wave Device Config Backup/Restore
 
-**Common Errors & Resolutions:**
+- Backs up all available config parameters via Z-Wave JS (as permitted by the integration).
+- If `restore_to_device_id` is specified, attempts to restore all mapped parameters to the new device (skips parameters not present; errors are logged and reported).
 
-| Error/Notification                     | Likely Cause                                             | Resolution                                         |
-|-----------------------------------------|----------------------------------------------------------|----------------------------------------------------|
-| "Node ID not found"                     | Incorrect `node_id` provided, or device offline          | Verify node ID and network, update config/service   |
-| "entities_backup.py not found/imported" | Support script missing or import path incorrect           | Confirm both files are together or fix import path  |
-| "Permission denied"                     | Lacking write permission for target backup directory      | Fix file system permissions, run AppDaemon as correct user |
-| "Backup failed: file system error"      | Disk full, directory missing, filename invalid            | Check free space, ensure directories exist & writable|
-| No notification sent                    | `notify_service` not set or is incorrect                  | Double-check `notify_service` value and syntax      |
-| No backup files found after run         | Misconfigured `backup_dir` or backup process errors       | Confirm directory path, check logs for failures     |
+--- 
 
-- **Log review**: Inspect AppDaemon and Home Assistant logs for stack traces or warnings.
-- **Update/Restart**: After resolving issues, reload or restart AppDaemon to apply the changes.
-- If issues persist, update both app and Home Assistant to latest versions, and inspect support forums.
+## Flow Overview
 
-## Support
+1. Extract all entities and configuration for the selected Z-Wave JS device (`target_device_id`).
+2. Write template YAML mapping (`zwave_entity_mapping.yaml`) for user edit.
+3. Back up all entity states and Z-Wave device config.
+4. If mapping file edited, process mapping to perform renames and report unmapped/surplus.
+5. On request, restore device parameters to a new device (best effort).
 
-For additional help, refer to the official [AppDaemon documentation](https://appdaemon.readthedocs.io/) or Community Forums. Issues with [`entities_backup.py`](entities_backup.py:1) are addressed separately in that app’s own documentation.
+---
+
+## Limitations
+
+- **Requires Home Assistant with Z-Wave JS and AppDaemon.**
+- Entity renaming and config restore depend on capabilities of HA and Z-Wave JS APIs.
+- Parameters/config may not be transferable between different device models/hardware.
+- Some advanced or custom device parameters may not be exported/restored (limited by the integration).
+- Home Assistant entity IDs must be unique—duplicate renames will be skipped and reported.
+- Only entities assigned to a single Z-Wave device are considered.
+
+---
+
+## Output Files
+
+- `zwave_entity_mapping.yaml` — editable mapping file for entity renames
+- `zwave_backup/entity_backup_*.yaml` — state/attribute backup pre-rename
+- `zwave_backup/zwave_device_config_*.yaml` — device configuration backup
+- `last_run_report.yaml` — YAML summary of all script operations/results
+
+---
+
+## See Also
+
+- [AppDaemon Documentation](https://appdaemon.readthedocs.io/)
+- [Z-Wave JS Integration Docs](https://www.home-assistant.io/integrations/zwave_js/)
+
+---
+
+## Example Advanced Sparse Mapping
+
+```yaml
+# Only remap a subset; other old entities will be ignored:
+mappings:
+  - current_entity: sensor.old_battery
+    target_entity: sensor.new_battery
+  - current_entity: switch.old_1
+    target_entity: switch.new_1
+  - current_entity: switch.old_2
+    target_entity:
+  - current_entity: binary_sensor.old_contact
+    target_entity:  # skipped entirely
+```
+
+---
+
+For troubleshooting, check `last_run_report.yaml` and AppDaemon logs.
