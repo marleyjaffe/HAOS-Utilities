@@ -1,0 +1,67 @@
+#
+# HADashboard dashboard for Z-Wave Entity Mapper Utility
+# Place in AppDaemon's dashboards directory or apps/dashboards/
+#
+# **Requires zwave_entity_mapper.py integration with HADashboard namespace/state**
+# Buttons/switches trigger operations; status & summary widgets read updates from the AppDaemon app
+
+title: Z-Wave Entity Mapper
+widget_dimensions: [120, 120]
+widget_margins: [10, 10]
+columns: 4
+
+layout:
+  - title,status,message,summary
+  - export,import,backup,restore
+
+export:
+  widget_type: switch
+  title: Export Entities
+  entity: sensor.zem_dashboard_export_trigger
+  icon_on: mdi:database-export
+  icon_off: mdi:database-export-outline
+
+import:
+  widget_type: switch
+  title: Import Mapping
+  entity: sensor.zem_dashboard_import_trigger
+  icon_on: mdi:database-import
+  icon_off: mdi:database-import-outline
+
+backup:
+  widget_type: switch
+  title: Backup Config
+  entity: sensor.zem_dashboard_backup_trigger
+  icon_on: mdi:backup-restore
+  icon_off: mdi:cloud-upload-outline
+
+restore:
+  widget_type: switch
+  title: Restore Config
+  entity: sensor.zem_dashboard_restore_trigger
+  icon_on: mdi:database-refresh
+  icon_off: mdi:cloud-download-outline
+
+status:
+  widget_type: sensor
+  title: Operation Status
+  entity: sensor.zem_dashboard_status
+
+message:
+  widget_type: sensor
+  title: Message
+  entity: sensor.zem_dashboard_message
+
+summary:
+  widget_type: sensor
+  title: Migration Summary
+  entity: sensor.zem_dashboard_summary
+
+title:
+  widget_type: label
+  text: "Z-Wave Mapper Dashboard"
+
+# Explanation:
+# - The *_trigger sensors are toggled by the user to initiate each operation.
+# - The zwave_entity_mapper.py AppDaemon app must listen for these changes and reset to OFF after handling.
+# - status/message/summary sensors are updated by the app for live feedback.

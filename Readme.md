@@ -235,7 +235,58 @@ mappings:
 - Backs up all available config parameters via Z-Wave JS (as permitted by the integration).
 - If `restore_to_device_id` is specified, attempts to restore all mapped parameters to the new device (skips parameters not present; errors are logged and reported).
 
---- 
+---
+
+## HADashboard Interface
+
+A simple web dashboard is included for direct operation and result viewing via AppDaemon's HADashboard. This provides a point-and-click UI for export, import, backup, and restore actions as well as live feedback/status.
+
+### Enabling the Dashboard
+
+1. **Copy the dashboard YAML:**
+   - Place `apps/dashboards/zwave_entity_mapper.dash` into your AppDaemon `dashboards/` directory.
+   - With standard Docker or config, this is usually `<config>/dashboards/` or `<conf>/dashboards/`.
+
+2. **Ensure the utility app (`zwave_entity_mapper.py`) is enabled and running in AppDaemon.**
+   - All sensor and trigger states are handled automatically.
+
+3. **Access the dashboard UI:**
+   - Open `http://<your-appdaemon-host>:5050/zwave_entity_mapper` in your browser.
+   - Default AppDaemon dashboards are served at port `5050`.
+   - If authentication or password is configured, you will need to log in with your AppDaemon dashboard user/pass.
+
+### Dashboard Features
+
+- **Operation Buttons:**
+  - **Export Entities:** Generates/refreshes the mapping YAML with all current Z-Wave entities for the configured device.
+  - **Import Mapping:** Applies the mapping file and initiates migration/renaming per mapping.
+  - **Backup Config:** Backs up all entity states and device configuration.
+  - **Restore Config:** Attempts to restore parameters/config to a "restore to" device (see AppDaemon app args).
+
+- **Live Output Widgets:**
+  - **Status:** Shows the current operation or idle state.
+  - **Message:** Shows success/error details after each operation.
+  - **Migration Summary:** Shows number of unmapped entities, error count, and last run time.
+
+### Dashboard Entity Mapping
+
+- Dashboard actions are wired via virtual sensors:
+  - `sensor.zem_dashboard_export_trigger`
+  - `sensor.zem_dashboard_import_trigger`
+  - `sensor.zem_dashboard_backup_trigger`
+  - `sensor.zem_dashboard_restore_trigger`
+- Output:
+  - `sensor.zem_dashboard_status`
+  - `sensor.zem_dashboard_message`
+  - `sensor.zem_dashboard_summary`
+- These are managed automatically by the AppDaemon utility.
+
+### Notes
+
+- If you have enabled basic authentication in AppDaemon (`api_password`, etc.), log in at the dashboard URL above.
+- All dashboard operations and output files remain available in your AppDaemon config directory for advanced/manual use.
+- For advanced customizations, edit the dashboard YAML as desired.
+
 
 ## Flow Overview
 

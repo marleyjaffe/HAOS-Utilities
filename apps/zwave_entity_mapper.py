@@ -26,12 +26,36 @@ class ZWaveEntityMapper(hass.Hass):
         self.mapping_file = self.args.get("mapping_file", "zwave_entity_mapping.yaml")
         self.backup_dir = self.args.get("backup_dir", "zwave_backup")
         self.report_file = self.args.get("report_file", "last_run_report.yaml")
+        self.summary_file = self.args.get("summary_file", "dashboard_summary.yaml")
 
         # Initial setup
         os.makedirs(self.backup_dir, exist_ok=True)
 
-        # Main workflow entry
-        self.run_in(self.main_flow, 1)
+        # --- HADashboard Integration Setup ----
+        # Register dashboard triggers and states
+        self.dashboard_triggers = [
+            "sensor.zem_dashboard_export_trigger",
+            "sensor.zem_dashboard_import_trigger",
+            "sensor.zem_dashboard_backup_trigger",
+            "sensor.zem_dashboard_restore_trigger"
+        ]
+        self.dashboard_status = "sensor.zem_dashboard_status"
+        self.dashboard_message = "sensor.zem_dashboard_message"
+        self.dashboard_summary = "sensor.zem_dashboard_summary"
+
+        # Ensure all dashboard sensors exist and are initialized OFF/idle
+        for trig in self.dashboard_triggers:
+            self.set_state(trig, state="off", namespace="hadashboard")
+        self.set_state(self.dashboard_status, state="Idle", namespace="hadashboard")
+        self.set_state(self.dashboard_message, state="", namespace="hadashboard")
+        self.set_state(self.dashboard_summary, state="No run yet", namespace="hadashboard")
+
+        # Listen for dashboard triggers
+        for trig in self.dashboard_triggers:
+            self.listen_state(self.dashboard_trigger_handler, trig, namespace="hadashboard")
+
+        # Run the normal workflow on startup (optional)
+        # self.run_in(self.main_flow, 1)
 
     def main_flow(self, kwargs):
         try:
